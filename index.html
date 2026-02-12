@@ -2,82 +2,144 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ubike 獵金助手</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>YouBike 獵金助手</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
     <style>
-        body { background: #111827; color: white; }
-        .card { background: rgba(31, 41, 55, 0.8); backdrop-filter: blur(8px); border: 1px solid #374151; }
+        body { background: #0f172a; color: #f8fafc; overflow-x: hidden; }
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1.5rem;
+        }
+        .gradient-text {
+            background: linear-gradient(45deg, #facc15, #fb923c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .pulse-yellow { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+        .tab-active { border-bottom: 3px solid #facc15; color: #facc15; }
     </style>
 </head>
-<body class="p-4">
-    <div class="max-w-md mx-auto">
-        <h1 class="text-2xl font-bold text-yellow-400 text-center mb-6">Ubike 5元獵人系統</h1>
-        <button onclick="fetchData()" id="btn" class="w-full bg-yellow-500 text-black font-bold py-4 rounded-xl mb-6 shadow-lg active:scale-95 transition">
-            🔍 掃描最近獎勵站點
-        </button>
-        <div id="status" class="text-center text-gray-400 text-sm mb-4">系統就緒</div>
-        <div id="list" class="space-y-4"></div>
+<body class="safe-area-inset-bottom">
+
+    <div class="max-w-md mx-auto min-h-screen flex flex-col p-4">
+        <header class="py-6 text-center animate__animated animate__fadeInDown">
+            <h1 class="text-3xl font-black gradient-text tracking-tight">UBIKE HUNTER 💰</h1>
+            <p class="text-slate-400 text-sm mt-1">即時掃描 5 元調度站點</p>
+        </header>
+
+        <div class="glass-card p-6 mb-6 shadow-2xl animate__animated animate__fadeIn">
+            <div class="flex justify-between items-center mb-4">
+                <span id="loc-tag" class="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded-full">等待定位...</span>
+                <span id="update-time" class="text-[10px] text-slate-500">尚未更新</span>
+            </div>
+            <button onclick="scan()" id="scan-btn" class="w-full bg-yellow-400 hover:bg-yellow-500 text-slate-900 font-bold py-4 rounded-2xl transition-all transform active:scale-95 shadow-lg shadow-yellow-400/20">
+                立即掃描周邊站點
+            </button>
+        </div>
+
+        <div class="flex-1 flex flex-col animate__animated animate__fadeInUp">
+            <div class="flex border-b border-slate-700 mb-4">
+                <button onclick="showTab('full')" id="tab-full" class="flex-1 py-3 font-bold tab-active">🔴 去取車 (滿站)</button>
+                <button onclick="showTab('empty')" id="tab-empty" class="flex-1 py-3 font-bold text-slate-500">🟢 去還車 (空站)</button>
+            </div>
+
+            <div id="loading" class="hidden py-10 text-center">
+                <div class="inline-block w-8 h-8 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin"></div>
+                <p class="mt-4 text-slate-400 text-sm">正在計算最佳獵金路線...</p>
+            </div>
+
+            <div id="list-container" class="space-y-3 pb-20">
+                </div>
+        </div>
     </div>
 
     <script>
-        async function fetchData() {
-            const btn = document.getElementById('btn');
-            const status = document.getElementById('status');
-            const list = document.getElementById('list');
+        let rawData = [];
+        let userCoords = null;
+
+        async function scan() {
+            const btn = document.getElementById('scan-btn');
+            const loader = document.getElementById('loading');
+            const list = document.getElementById('list-container');
             
             btn.disabled = true;
-            status.innerText = "正在取得位置與穿透 CORS 限制...";
+            btn.innerText = "搜尋中...";
+            loader.classList.remove('hidden');
             list.innerHTML = "";
 
             navigator.geolocation.getCurrentPosition(async (pos) => {
-                const { latitude, longitude } = pos.coords;
-                
-                try {
-                    // 使用 AllOrigins 代理徹底解決抓不到資料的問題
-                    const target = "https://tcgbusfs.blob.core.windows.net/dotddo/youbike/v2/youbike_immediate.json";
-                    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(target)}&t=${Date.now()}`;
-                    
-                    const response = await fetch(proxyUrl);
-                    const wrapper = await response.json();
-                    const stations = JSON.parse(wrapper.contents); // 這裡要解析內容
-
-                    const results = stations.map(s => {
-                        const d = Math.sqrt(Math.pow(s.latitude - latitude, 2) + Math.pow(s.longitude - longitude, 2)) * 111;
-                        return { ...s, dist: d };
-                    })
-                    .filter(s => s.available_return_bikes === 0 || s.available_rent_bikes === 0)
-                    .sort((a, b) => a.dist - b.dist)
-                    .slice(0, 10);
-
-                    results.forEach(s => {
-                        const isFull = s.available_return_bikes === 0;
-                        const div = document.createElement('div');
-                        div.className = "card p-4 rounded-xl flex justify-between items-center border-l-4 " + (isFull ? "border-red-500" : "border-green-500");
-                        div.innerHTML = `
-                            <div>
-                                <div class="font-bold">${s.sna.split('_')[1]}</div>
-                                <div class="text-xs text-gray-400">距離約 ${(s.dist * 1000).toFixed(0)}m</div>
-                            </div>
-                            <div class="text-right">
-                                <div class="text-xl font-black ${isFull ? 'text-red-500' : 'text-green-500'}">${s.available_rent_bikes}/${s.total}</div>
-                                <div class="text-[10px]">${isFull ? '滿站取車' : '空站還車'}</div>
-                            </div>
-                        `;
-                        div.onclick = () => window.open(`https://www.google.com/maps/dir/?api=1&destination=${s.latitude},${s.longitude}`);
-                        list.appendChild(div);
-                    });
-                    status.innerText = "掃描成功！點擊卡片開啟導航";
-                } catch (e) {
-                    status.innerText = "抓取失敗，請確認 API 狀態";
-                    console.error(e);
-                } finally {
-                    btn.disabled = false;
-                }
+                userCoords = pos.coords;
+                document.getElementById('loc-tag').innerText = "📍 已定位成功";
+                await fetchData();
             }, (err) => {
-                status.innerText = "定位失敗，請開啟 GPS";
+                alert("請開啟定位權限才能計算距離！");
                 btn.disabled = false;
+                btn.innerText = "立即掃描周邊站點";
+                loader.classList.add('hidden');
             });
+        }
+
+        async function fetchData() {
+            try {
+                // 使用 TDX API 的替代方案或 TDX 代理 (這裡用台北市公開資料作範例)
+                const res = await fetch('https://tcgbusfs.blob.core.windows.net/dotddo/youbike/v2/youbike_immediate.json');
+                rawData = await res.json();
+                render('full');
+                document.getElementById('update-time').innerText = "最後更新: " + new Date().toLocaleTimeString();
+            } catch (e) {
+                alert("資料抓取失敗，請確認網路連線");
+            } finally {
+                document.getElementById('scan-btn').disabled = false;
+                document.getElementById('scan-btn').innerText = "重新掃描";
+                document.getElementById('loading').classList.add('hidden');
+            }
+        }
+
+        function render(type) {
+            const list = document.getElementById('list-container');
+            list.innerHTML = "";
+
+            const filtered = rawData.map(s => ({
+                ...s,
+                dist: Math.hypot(s.latitude - userCoords.latitude, s.longitude - userCoords.longitude) * 111 // 簡單距離換算
+            }))
+            .filter(s => type === 'full' ? s.available_return_bikes <= 1 : s.available_rent_bikes <= 1)
+            .sort((a, b) => a.dist - b.dist)
+            .slice(0, 15);
+
+            filtered.forEach(s => {
+                const card = document.createElement('div');
+                card.className = "glass-card p-5 flex justify-between items-center animate__animated animate__fadeInUp";
+                card.innerHTML = `
+                    <div class="flex-1">
+                        <div class="font-bold text-lg">${s.sna.split('_')[1]}</div>
+                        <div class="text-xs text-slate-500 mt-1">距離約 ${s.dist.toFixed(2)} km</div>
+                        <div class="mt-2">
+                            <span class="text-[10px] bg-slate-800 px-2 py-1 rounded text-slate-400">總車位 ${s.total}</span>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-2xl font-black ${type === 'full' ? 'text-red-500' : 'text-green-500'}">
+                            ${type === 'full' ? s.available_rent_bikes : s.available_return_bikes}
+                        </div>
+                        <div class="text-[10px] font-bold text-slate-500 uppercase">${type === 'full' ? '可借車輛' : '剩餘空位'}</div>
+                    </div>
+                `;
+                // 點擊卡片跳轉 Google 地圖導航
+                card.onclick = () => window.open(`https://www.google.com/maps/dir/?api=1&destination=${s.latitude},${s.longitude}`);
+                list.appendChild(card);
+            });
+        }
+
+        function showTab(type) {
+            document.getElementById('tab-full').className = `flex-1 py-3 font-bold ${type === 'full' ? 'tab-active' : 'text-slate-500'}`;
+            document.getElementById('tab-empty').className = `flex-1 py-3 font-bold ${type === 'empty' ? 'tab-active' : 'text-slate-500'}`;
+            if(rawData.length > 0) render(type);
         }
     </script>
 </body>
