@@ -3,143 +3,154 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>YouBike 獵金助手</title>
+    <title>UBIKE 獵金系統 2026</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
     <style>
-        body { background: #0f172a; color: #f8fafc; overflow-x: hidden; }
-        .glass-card {
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 1.5rem;
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap');
+        body { background: #020617; color: #fff; font-family: sans-serif; }
+        .cyber-font { font-family: 'Orbitron', sans-serif; }
+        
+        /* 高級霓虹光暈 */
+        .neon-glow { text-shadow: 0 0 10px #facc15, 0 0 20px #facc15; }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(250, 204, 21, 0.2);
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
         }
-        .gradient-text {
-            background: linear-gradient(45deg, #facc15, #fb923c);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+
+        /* 掃描線動畫 */
+        .scanline {
+            width: 100%; height: 100px;
+            background: linear-gradient(0deg, transparent 0%, rgba(250, 204, 21, 0.2) 50%, transparent 100%);
+            position: absolute; top: -100px; left: 0;
+            animation: moveScan 3s infinite linear;
+            pointer-events: none;
         }
-        .pulse-yellow { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
-        .tab-active { border-bottom: 3px solid #facc15; color: #facc15; }
+        @keyframes moveScan { 0% { top: -100px; } 100% { top: 100%; } }
+
+        /* 卡片進場動畫 */
+        .card-entry { animation: slideIn 0.5s ease-out forwards; opacity: 0; }
+        @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     </style>
 </head>
-<body class="safe-area-inset-bottom">
+<body class="overflow-x-hidden min-h-screen">
 
-    <div class="max-w-md mx-auto min-h-screen flex flex-col p-4">
-        <header class="py-6 text-center animate__animated animate__fadeInDown">
-            <h1 class="text-3xl font-black gradient-text tracking-tight">UBIKE HUNTER 💰</h1>
-            <p class="text-slate-400 text-sm mt-1">即時掃描 5 元調度站點</p>
+    <div class="relative z-10 p-4 max-w-md mx-auto">
+        <header class="py-10 text-center">
+            <h1 class="text-4xl cyber-font font-black text-yellow-400 neon-glow italic tracking-tighter">UBIKE HUNTER</h1>
+            <div class="mt-2 text-[10px] text-yellow-500/50 tracking-[0.5em] uppercase">Tactical Deployment System</div>
         </header>
 
-        <div class="glass-card p-6 mb-6 shadow-2xl animate__animated animate__fadeIn">
-            <div class="flex justify-between items-center mb-4">
-                <span id="loc-tag" class="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded-full">等待定位...</span>
-                <span id="update-time" class="text-[10px] text-slate-500">尚未更新</span>
+        <div class="glass-panel rounded-3xl p-6 relative overflow-hidden mb-8">
+            <div id="scan-line" class="scanline hidden"></div>
+            <div class="flex justify-between items-center mb-6">
+                <div class="flex items-center gap-2">
+                    <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                    <span id="sys-status" class="text-[10px] text-green-500 font-mono">SYSTEM: ONLINE</span>
+                </div>
+                <span id="time-tag" class="text-[10px] text-slate-500 font-mono">--:--:--</span>
             </div>
-            <button onclick="scan()" id="scan-btn" class="w-full bg-yellow-400 hover:bg-yellow-500 text-slate-900 font-bold py-4 rounded-2xl transition-all transform active:scale-95 shadow-lg shadow-yellow-400/20">
-                立即掃描周邊站點
+            
+            <button onclick="ignite()" id="main-btn" class="w-full py-5 bg-yellow-400 hover:bg-yellow-300 text-black font-black rounded-2xl cyber-font transition-all transform active:scale-95">
+                START SCANNING
             </button>
         </div>
 
-        <div class="flex-1 flex flex-col animate__animated animate__fadeInUp">
-            <div class="flex border-b border-slate-700 mb-4">
-                <button onclick="showTab('full')" id="tab-full" class="flex-1 py-3 font-bold tab-active">🔴 去取車 (滿站)</button>
-                <button onclick="showTab('empty')" id="tab-empty" class="flex-1 py-3 font-bold text-slate-500">🟢 去還車 (空站)</button>
-            </div>
+        <div class="flex gap-2 mb-6">
+            <button onclick="setMode('full')" id="btn-f" class="flex-1 py-3 bg-red-500/20 border border-red-500/50 text-red-400 text-xs font-bold rounded-xl transition-all">滿站 (取車點)</button>
+            <button onclick="setMode('empty')" id="btn-e" class="flex-1 py-3 bg-slate-800/50 border border-slate-700 text-slate-500 text-xs font-bold rounded-xl transition-all">空站 (還車點)</button>
+        </div>
 
-            <div id="loading" class="hidden py-10 text-center">
-                <div class="inline-block w-8 h-8 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin"></div>
-                <p class="mt-4 text-slate-400 text-sm">正在計算最佳獵金路線...</p>
-            </div>
-
-            <div id="list-container" class="space-y-3 pb-20">
-                </div>
+        <div id="feed" class="space-y-4 pb-20">
+            <div class="text-center py-20 text-slate-600 italic text-sm">Waiting for system ignition...</div>
         </div>
     </div>
 
     <script>
-        let rawData = [];
+        let stations = [];
         let userCoords = null;
+        let currentMode = 'full';
 
-        async function scan() {
-            const btn = document.getElementById('scan-btn');
-            const loader = document.getElementById('loading');
-            const list = document.getElementById('list-container');
-            
+        function setMode(m) {
+            currentMode = m;
+            document.getElementById('btn-f').className = m === 'full' ? 'flex-1 py-3 bg-red-500/20 border border-red-500 text-red-400 text-xs font-bold rounded-xl' : 'flex-1 py-3 bg-slate-800/50 border border-slate-700 text-slate-500 text-xs font-bold rounded-xl';
+            document.getElementById('btn-e').className = m === 'empty' ? 'flex-1 py-3 bg-green-500/20 border border-green-500 text-green-400 text-xs font-bold rounded-xl' : 'flex-1 py-3 bg-slate-800/50 border border-slate-700 text-slate-500 text-xs font-bold rounded-xl';
+            if(stations.length > 0) render();
+        }
+
+        async function ignite() {
+            const btn = document.getElementById('main-btn');
+            const scanLine = document.getElementById('scan-line');
             btn.disabled = true;
-            btn.innerText = "搜尋中...";
-            loader.classList.remove('hidden');
-            list.innerHTML = "";
+            btn.innerText = "LOCALIZING...";
+            scanLine.classList.remove('hidden');
 
             navigator.geolocation.getCurrentPosition(async (pos) => {
                 userCoords = pos.coords;
-                document.getElementById('loc-tag').innerText = "📍 已定位成功";
-                await fetchData();
-            }, (err) => {
-                alert("請開啟定位權限才能計算距離！");
-                btn.disabled = false;
-                btn.innerText = "立即掃描周邊站點";
-                loader.classList.add('hidden');
+                document.getElementById('sys-status').innerText = "FETCHING DATA...";
+                await secureFetch();
+            }, () => {
+                alert("GPS定位失敗！請開啟權限。");
+                resetBtn();
             });
         }
 
-        async function fetchData() {
+        async function secureFetch() {
+            const target = "https://tcgbusfs.blob.core.windows.net/dotddo/youbike/v2/youbike_immediate.json";
+            // 這次改用這個最強的轉介網址，不需要擴充功能也能跑
+            const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(target)}&t=${Date.now()}`;
+
             try {
-                // 使用 TDX API 的替代方案或 TDX 代理 (這裡用台北市公開資料作範例)
-                const res = await fetch('https://tcgbusfs.blob.core.windows.net/dotddo/youbike/v2/youbike_immediate.json');
-                rawData = await res.json();
-                render('full');
-                document.getElementById('update-time').innerText = "最後更新: " + new Date().toLocaleTimeString();
+                const res = await fetch(proxy);
+                const json = await res.json();
+                stations = JSON.parse(json.contents);
+                document.getElementById('time-tag').innerText = new Date().toLocaleTimeString();
+                document.getElementById('sys-status').innerText = "SUCCESS";
+                render();
             } catch (e) {
-                alert("資料抓取失敗，請確認網路連線");
+                document.getElementById('sys-status').innerText = "RETRYING...";
+                alert("抓取失敗，請確認手機網路或稍後再試。");
             } finally {
-                document.getElementById('scan-btn').disabled = false;
-                document.getElementById('scan-btn').innerText = "重新掃描";
-                document.getElementById('loading').classList.add('hidden');
+                resetBtn();
             }
         }
 
-        function render(type) {
-            const list = document.getElementById('list-container');
-            list.innerHTML = "";
+        function resetBtn() {
+            document.getElementById('main-btn').disabled = false;
+            document.getElementById('main-btn').innerText = "RESURRECT SCAN";
+            document.getElementById('scan-line').classList.add('hidden');
+        }
 
-            const filtered = rawData.map(s => ({
-                ...s,
-                dist: Math.hypot(s.latitude - userCoords.latitude, s.longitude - userCoords.longitude) * 111 // 簡單距離換算
-            }))
-            .filter(s => type === 'full' ? s.available_return_bikes <= 1 : s.available_rent_bikes <= 1)
+        function render() {
+            const feed = document.getElementById('feed');
+            feed.innerHTML = "";
+
+            const list = stations.map(s => {
+                const d = Math.sqrt(Math.pow(s.latitude - userCoords.latitude, 2) + Math.pow(s.longitude - userCoords.longitude, 2)) * 111;
+                return {...s, dist: d};
+            })
+            .filter(s => currentMode === 'full' ? s.available_return_bikes === 0 : s.available_rent_bikes === 0)
             .sort((a, b) => a.dist - b.dist)
             .slice(0, 15);
 
-            filtered.forEach(s => {
+            list.forEach((s, i) => {
                 const card = document.createElement('div');
-                card.className = "glass-card p-5 flex justify-between items-center animate__animated animate__fadeInUp";
+                card.className = "glass-panel p-6 rounded-2xl card-entry flex justify-between items-center relative overflow-hidden border-l-4 " + (currentMode === 'full' ? 'border-red-500' : 'border-green-500');
+                card.style.animationDelay = `${i * 0.1}s`;
                 card.innerHTML = `
-                    <div class="flex-1">
-                        <div class="font-bold text-lg">${s.sna.split('_')[1]}</div>
-                        <div class="text-xs text-slate-500 mt-1">距離約 ${s.dist.toFixed(2)} km</div>
-                        <div class="mt-2">
-                            <span class="text-[10px] bg-slate-800 px-2 py-1 rounded text-slate-400">總車位 ${s.total}</span>
-                        </div>
+                    <div>
+                        <div class="cyber-font text-sm text-white">${s.sna.split('_')[1]}</div>
+                        <div class="text-[10px] text-slate-500 mt-1 uppercase font-mono tracking-widest">RANGE: ${s.dist.toFixed(2)} KM</div>
                     </div>
                     <div class="text-right">
-                        <div class="text-2xl font-black ${type === 'full' ? 'text-red-500' : 'text-green-500'}">
-                            ${type === 'full' ? s.available_rent_bikes : s.available_return_bikes}
-                        </div>
-                        <div class="text-[10px] font-bold text-slate-500 uppercase">${type === 'full' ? '可借車輛' : '剩餘空位'}</div>
+                        <div class="text-2xl font-black cyber-font ${currentMode==='full'?'text-red-500':'text-green-500'}">${currentMode==='full'?s.available_rent_bikes:s.available_return_bikes}</div>
+                        <div class="text-[8px] text-slate-600 font-bold uppercase tracking-tighter">${currentMode==='full'?'Bikes Available':'Empty Slots'}</div>
                     </div>
                 `;
-                // 點擊卡片跳轉 Google 地圖導航
                 card.onclick = () => window.open(`https://www.google.com/maps/dir/?api=1&destination=${s.latitude},${s.longitude}`);
-                list.appendChild(card);
+                feed.appendChild(card);
             });
-        }
-
-        function showTab(type) {
-            document.getElementById('tab-full').className = `flex-1 py-3 font-bold ${type === 'full' ? 'tab-active' : 'text-slate-500'}`;
-            document.getElementById('tab-empty').className = `flex-1 py-3 font-bold ${type === 'empty' ? 'tab-active' : 'text-slate-500'}`;
-            if(rawData.length > 0) render(type);
         }
     </script>
 </body>
