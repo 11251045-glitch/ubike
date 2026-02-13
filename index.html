@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>YouBike 獵金雷達</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #0f172a; color: white; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        .btn-glow { box-shadow: 0 0 15px rgba(234, 179, 8, 0.4); }
+    </style>
+</head>
+<body class="p-4">
+    <div class="max-w-md mx-auto">
+        <header class="text-center py-6">
+            <h1 class="text-3xl font-black text-yellow-400 italic tracking-tighter">UBIKE HUNTER</h1>
+            <div id="status-msg" class="text-[10px] text-slate-500 mt-2 uppercase tracking-widest font-mono">System Ready</div>
+        </header>
+
+        <div class="glass p-6 rounded-3xl mb-6 shadow-2xl border-t border-white/10">
+            <button onclick="startHunting()" id="main-btn" class="btn-glow w-full bg-yellow-400 hover:bg-yellow-500 text-slate-900 font-black py-5 rounded-2xl transition-all transform active:scale-95">
+                🛰️ 啟動全域搜尋
+            </button>
+        </div>
+
+        <div id="result-list" class="space-y-4 pb-10">
+            </div>
+    </div>
+
+    <script>
+        async function startHunting() {
+            const btn = document.getElementById('main-btn');
+            const status = document.getElementById('status-msg');
+            const list = document.getElementById('result-list');
+            
+            btn.disabled = true;
+            btn.innerText = "掃描中...";
+            status.innerText = "正在取得 GPS 權限...";
+            list.innerHTML = "";
+
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                const { latitude: lat, longitude: lon } = pos.coords;
+                status.innerText = `座標: ${lat.toFixed(3)}, ${lon.toFixed(3)} | 請求 API...`;
+
+                try {
+                    // 更換代理伺服器為 corsproxy.io (目前較穩定)
+                    const target = "https://tcgbusfs.blob.core.windows.net/dotddo/youbike/v2/youbike_immediate.json";
+                    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(target)}`;
+                    
+                    const response = await fetch(proxyUrl);
+                    if (!response.ok) throw new Error("代理伺服器忙碌中");
+                    
+                    const stations = await response.json();
+
+                    // 計算距離與篩選 (滿站或空站)
+                    const bonusStations = stations.map(s => {
+                        const d = Math.sqrt(Math.pow(s.latitude - lat, 2) + Math.pow(s.longitude - lon, 2)) * 111;
+                        return { ...s, dist: d };
+                    })
+                    .filter(s => s.available_return_bikes === 0 || s.available_rent_bikes === 0)
+                    .sort((a, b) => a.dist - b.dist)
+                    .slice(0, 15);
+
+                    if (bonusStations.length === 0) {
+                        list.innerHTML = `<div class="text-center text-slate-500 py-10 italic">附近暫無獎勵站點</div>`;
+                    }
+
+                    bonusStations.forEach(s => {
+                        const isFull = s.available_return_bikes === 0;
+                        const card = document.createElement('div');
+                        card.className = `glass p-5 rounded-2xl border-l-4 flex justify-between items-center transition-all active:bg-white/5 ${isFull ? 'border-red-500' : 'border-green-500'}`;
+                        card.innerHTML = `
+                            <div>
+                                <div class="font-bold text-lg">${s.sna.replace('YouBike2.0_', '')}</div>
+                                <div class="text-[10px] text-slate-400">距離 ${(s.dist * 1000).toFixed(0)}m</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-2xl font-black ${isFull ? 'text-red-500' : 'text-green-500'}">${s.available_rent_bikes}/${s.total}</div>
+                                <div class="text-[9px] font-bold text-slate-500 uppercase">${isFull ? '滿站取車' : '空站還車'}</div>
+                            </div>
+                        `;
+                        card.onclick = () => window.open(`https://www.google.com/maps/dir/?api=1&destination=${s.latitude},${s.longitude}`);
+                        list.appendChild(card);
+                    });
+
+                    status.innerText = "掃描成功！";
+                } catch (e) {
+                    console.error(e);
+                    status.innerText = "代理伺服器超時，請點擊按鈕重試";
+                    alert("目前免費通道擁擠，若多次失敗，建議換個網路環境或稍後再試。");
+                } finally {
+                    btn.disabled = false;
+                    btn.innerText = "🛰️ 重新掃描";
+                }
+            }, (err) => {
+                alert("請務必在手機設定中允許瀏覽器存取「位置」權限！");
+                btn.disabled = false;
+                btn.innerText = "🛰️ 重新掃描";
+            });
+        }
+    </script>
+</body>
+</html>
